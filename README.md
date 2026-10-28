@@ -17,6 +17,11 @@ python -m pytest -q
 | `core/equity.py` | Anytime Monte Carlo equity vs N random opponents, an optional soft weight, or an exact combo range |
 | `core/preflop.py` | Cached 169-class equity table, position-keyed chart (UTG..BB), push/fold ranges |
 | `core/state.py` | Protocol-agnostic `GameState`, `Legal`, `Action`, position naming |
+| `core/bot.py` | `Bot` base class (`act(state) -> Action`, `hand_over(result)`) |
+| `sim/engine.py` | 2-8 seat NLHE engine: blinds, min-raise and reopen rules, side and split pots, stack persistence with auto-rebuy, error/illegal counting |
+| `sim/run.py` | Match runner: bb/100 with 95% CI, duplicate mode, think-time stats |
+| `bots/__init__.py` | Bot registry (`make_bot`) |
+| `bots/zoo/` | Reference opponents |
 | `core/data/preflop_equity.json` | Precomputed table. Rebuild: `python -m core.preflop --samples 20000` (~1 min on 4 cores) |
 
 ## Defaults and conventions (chosen, not confirmed)
@@ -27,5 +32,18 @@ python -m pytest -q
 - Opening sizes per position live in `OPEN_PCT`, `THREEBET_PCT`, `CALL_PCT`, `FOURBET_PCT`, `CALL3_PCT` in `core/preflop.py`. Hands within `MIX_BAND` of a cutoff are mixed.
 - Push/fold below `PUSHFOLD_BB = 15` effective big blinds.
 - Equity speed: ~7 µs/sample heads-up, ~12 µs with 7 opponents (eval7), so ~2,000-3,000 samples fit in 15 ms.
+
+## Simulator
+
+```
+python -m sim.run call allin random fold raise call random fold --hands 10000
+python -m sim.run call random --hands 4000 --duplicate
+python -m sim.run call allin random raise --persist --stack 1500
+```
+
+- Stacks reset to `--stack` (default 10,000) every hand unless `--persist`; with `--persist` a busted bot rebuys to the starting stack (counted in `SeatStats.rebuys`).
+- `--duplicate` replays each deal once per seat rotation, so every bot gets every seat's cards. The CI is computed over deal blocks.
+- Engine rules: an all-in raise smaller than a full raise does not reopen betting for players who already acted; odd chips in split pots go to the first winner left of the button; uncalled bets are returned.
+- A bot's exception becomes check/fold; an illegal action is mapped to the nearest legal one (an out-of-range raise is clamped, an illegal check becomes a fold). Both are counted.
 
 See `RULES_NOTES.md` for what is assumed about the official rules.

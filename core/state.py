@@ -162,3 +162,17 @@ class GameState:
         idx = names.index(me)
         live_pos = {self.positions.get(s) for s in self.live if s != self.my_seat}
         return sum(1 for n in names[idx + 1:] if n in live_pos)
+
+
+@dataclass
+class HandResult:
+    """Sent to every bot when a hand ends (for opponent modelling)."""
+    hand_id: int
+    button: object
+    names: dict             # seat -> bot name
+    positions: dict         # seat -> position name
+    board: list
+    history: list           # HistoryEntry, whole hand (incl. blind posts)
+    showdown: dict          # seat -> hole cards, for players who showed
+    net: dict               # seat -> chips won (+) or lost (-)
+    start_stacks: dict      # seat -> stack at hand start
