@@ -33,6 +33,15 @@ python -m pytest -q
 - Push/fold below `PUSHFOLD_BB = 15` effective big blinds.
 - Equity speed: ~7 µs/sample heads-up, ~12 µs with 7 opponents (eval7), so ~2,000-3,000 samples fit in 15 ms.
 
+## Main bot (`bots/main_bot.py`)
+
+- Preflop: position chart with mixed frequencies (open 2.5bb +1bb per limper; 3-bet 3x in position, 3.8x out of position; 4-bet 2.3x, jam when that commits 40% of the stack). Push/fold at or below 15bb effective. Facing a shove or a raise of 35%+ of our stack, it calls only when its equity against the raiser's assumed range (top 12% / 4% / 2% for 1 / 2 / 3+ raises) beats the all-in price.
+- Postflop: anytime Monte Carlo equity (6 ms total budget, at most 800 samples). Opponent hands are narrowed by their preflop action (raiser top 18%, caller 35-55%, blind 75%). When an opponent bets, hands that don't improve on the board are down-weighted (bluff share 30% / 20% / 10% on flop / turn / river).
+- Value bets need equity >= 0.62 / 0.68 / 0.74 (heads-up / 3-way / 4+-way) **and** >= 52% against the range that would call. Sizes are 50% or 75% pot, plus a shove when SPR < 1.6. It bluffs only heads-up (flop c-bet 40%, turn 18%, river 10%).
+- Calls need pot odds + 4% (+6% per extra raise, +2% per extra opponent).
+- Every knob is in `Config`. The exploit hooks are `Adjust` / `MainBot.adjust(state)`.
+- Gauntlet: `python -m sim.gauntlet main --hands 8000` (7 copies of each zoo bot, 8-handed, duplicate mode, plus mixed fields).
+
 ## Opponent zoo (`bots/zoo/`, registry names in brackets)
 
 | Bot | Style |

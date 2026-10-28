@@ -1,4 +1,5 @@
 """Bot registry: make_bot('call', seed=1) -> bot instance."""
+from bots import main_bot
 from bots.zoo import simple, styles
 
 REGISTRY = {
@@ -18,6 +19,7 @@ REGISTRY = {
     "potodds": styles.PotOdds,
     "mc": styles.MonteCarlo,
     "bayes": styles.Bayes,
+    "main": main_bot.MainBot,
 }
 ZOO = [k for k in REGISTRY if k != "main"]
 

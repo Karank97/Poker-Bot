@@ -144,6 +144,21 @@ def strong_percentile(cls_or_cards) -> float:
     return _strong_percentiles()[_cls(cls_or_cards)]
 
 
+@lru_cache(maxsize=1)
+def percentile_matrix():
+    """m[c1][c2] = hand_percentile of the two cards, for fast range weights."""
+    pct = _percentiles()
+    return [[pct[hand_class(a, b)] if a != b else 1.0 for b in range(52)] for a in range(52)]
+
+
+@lru_cache(maxsize=64)
+def strong_range_combos(pct: float) -> list:
+    """All (c1, c2) combos in the top `pct` by the strong (vs-raise) ranking."""
+    sp = _strong_percentiles()
+    out = [c for cls, p in sp.items() if p <= max(pct, 0.005) for c in class_all_combos(cls)]
+    return out
+
+
 def top_range(pct: float) -> set[str]:
     return {c for c, p in _percentiles().items() if p <= pct}
 

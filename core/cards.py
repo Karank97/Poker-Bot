@@ -147,6 +147,39 @@ except ImportError:  # pragma: no cover - exercised only without eval7
         return 7463 - _tev.evaluate(cs[:2], cs[2:])
 
 
+HIGH_CARD, PAIR, TWO_PAIR, TRIPS, STRAIGHT, FLUSH, FULL_HOUSE, QUADS, STRAIGHT_FLUSH = range(9)
+
+
+if BACKEND == "eval7":
+    def category(score: int) -> int:
+        """Hand category 0 (high card) .. 8 (straight flush) of an evaluate() score."""
+        return score >> 24
+else:  # pragma: no cover
+    _TREYS_MAX = (10, 166, 322, 1599, 1609, 2467, 3325, 6185)
+
+    def category(score: int) -> int:
+        rank = 7463 - score
+        for i, m in enumerate(_TREYS_MAX):
+            if rank <= m:
+                return 8 - i
+        return 0
+
+
+def board_category(board) -> int:
+    """Category of the board alone (3..5 cards)."""
+    if len(board) == 5:
+        return category(evaluate(board))
+    counts = sorted((sum(1 for c in board if rank_of(c) == r) for r in {rank_of(c) for c in board}),
+                    reverse=True)
+    if counts and counts[0] == 4:
+        return QUADS
+    if counts and counts[0] == 3:
+        return TRIPS
+    if len(counts) > 1 and counts[0] == 2 and counts[1] == 2:
+        return TWO_PAIR
+    return PAIR if counts and counts[0] == 2 else HIGH_CARD
+
+
 def native_cards():
     """Backend card objects indexed by our int card, for tight loops."""
     return _NATIVE
