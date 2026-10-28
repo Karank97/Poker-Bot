@@ -132,6 +132,18 @@ class GameState:
         s = street or self.street
         return [h for h in self.history if h.street == s]
 
+    def street_contrib(self, seat, street=None) -> int:
+        """Chips `seat` has put in on a street, from the history."""
+        total = 0
+        for h in self.street_actions(street):
+            if h.seat != seat:
+                continue
+            if h.kind == "post" or h.kind in AGGRESSIVE:
+                total = h.amount
+            elif h.kind == CALL:
+                total += h.amount
+        return total
+
     def raises_this_street(self) -> int:
         return sum(1 for h in self.street_actions() if h.kind in AGGRESSIVE)
 

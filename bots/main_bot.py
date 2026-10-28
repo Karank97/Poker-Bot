@@ -10,7 +10,7 @@ Exploit hooks: `self.adjust(state)` returns an Adjust with multipliers and
 shifts; the base bot returns neutral values and the opponent model (Phase 5)
 overrides it.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -58,6 +58,10 @@ class Adjust:
     fold_to_aggr: float = 0.0    # add to call margin vs this bettor (respect nits)
     opp_range: float = 1.0       # scales assumed opponent range widths
     bettor_bluff: float = 1.0    # scales how often a bettor holds nothing (maniacs > 1)
+    caller_air: float = 1.0      # scales how often a caller holds nothing (stations > 1)
+    jam_width: float = 0.0       # if > 0: the shover's range width, from the opponent model
+    trap: float = 0.0            # chance to check a strong hand to an aggressive opponent
+    range_widths: dict = field(default_factory=dict)  # seat -> (raise width, call width)
 
 
 class MainBot(Bot):
@@ -164,15 +168,20 @@ class MainBot(Bot):
         n_raises = sum(1 for h in state.history
                        if h.street == "preflop" and h.kind in ("raise", "bet") and h.seat != state.my_seat)
         width = cfg.jam_range[min(n_raises, 3) - 1] * adj.jam_call_mult
+        if adj.jam_width > 0:
+            width = adj.jam_width
+        # opponents already in for a big amount (several shovers = several hands to beat)
+        big = 0.5 * (state.my_street_bet + state.to_call)
+        n_in = max(1, sum(1 for s in state.live if s != state.my_seat and state.street_contrib(s) >= big))
         if width >= 0.99:
-            eq, _ = equity_detailed(state.hole, (), 1, samples=300, time_budget=0.003, rng=self.rng)
+            eq, _ = equity_detailed(state.hole, (), n_in, samples=300, time_budget=0.003, rng=self.rng)
         else:
-            eq, _ = equity_detailed(state.hole, (), 1, samples=300, time_budget=0.003, rng=self.rng,
+            eq, _ = equity_detailed(state.hole, (), n_in, samples=300, time_budget=0.003, rng=self.rng,
                                     opp_range=strong_range_combos(round(min(1.0, width), 3)))
         # calling also risks the rest of our stack if the raiser is not all-in: price as all-in
         risk = min(state.my_stack, state.effective_stack - state.my_street_bet)
         po = risk / (state.pot + risk)
-        self.last = {"eq": eq, "po": po, "width": width}
+        self.last = {"eq": eq, "po": po, "width": width, "n": n_in}
         if eq >= po + cfg.jam_call_margin:
             if eq >= 0.6 and state.legal.can_raise:
                 return self._raise_to(state, state.legal.max_raise_to)
@@ -183,15 +192,16 @@ class MainBot(Bot):
     def _range_width(self, state, seat, adj) -> float:
         """Assumed preflop range width for an opponent from their preflop action."""
         acts = [h.kind for h in state.history if h.seat == seat and h.street == "preflop"]
+        known = adj.range_widths.get(seat)
         if "raise" in acts:
-            w = 0.18
+            w = known[0] if known else 0.18
         elif "call" in acts:
-            w = 0.35 if state.preflop_facing() != "unopened" else 0.55
+            w = known[1] if known else (0.35 if state.preflop_facing() != "unopened" else 0.55)
         else:
             w = 0.75   # blind that checked
         return min(1.0, w * adj.opp_range)
 
-    def _weight_fn(self, state, opps, adj, level):
+    def _weight_fn(self, state, opps, adj, level, role="bettor"):
         """Keep-probability for an opponent hand: preflop range width times a
         board-aware penalty for hands that do not improve on the board.
         level 0: no postflop info; 1: they bet (or would call a bet);
@@ -203,7 +213,8 @@ class MainBot(Bot):
         bcat = board_category(board)
         need = bcat + (1 if level <= 1 else 2)
         si = ("flop", "turn", "river").index(state.street)
-        air = (self.cfg.bet_air_share if level <= 1 else self.cfg.raise_air_share)[si] * adj.bettor_bluff
+        air = (self.cfg.bet_air_share if level <= 1 else self.cfg.raise_air_share)[si]
+        air *= adj.bettor_bluff if role == "bettor" else adj.caller_air
         air = min(1.0, air)
 
         def weight(a, b):
@@ -213,13 +224,13 @@ class MainBot(Bot):
             return x
         return weight
 
-    def equity(self, state, adj, level=None, budget_frac=1.0):
+    def equity(self, state, adj, level=None, budget_frac=1.0, role="bettor"):
         """Equity vs the live opponents. level=None: their actual aggression
         this street; an int: the range that would continue at that level."""
         opps = [s for s in state.live if s != state.my_seat]
         if level is None:
             level = state.raises_this_street() if state.to_call > 0 else 0
-        weight = self._weight_fn(state, opps, adj, level)
+        weight = self._weight_fn(state, opps, adj, level, role)
         eq, n = equity_detailed(state.hole, state.board, max(1, len(opps)),
                                 samples=self.cfg.equity_samples,
                                 time_budget=self.cfg.equity_budget * budget_frac,
@@ -239,13 +250,13 @@ class MainBot(Bot):
         if state.to_call == 0:
             if eq >= value_th:
                 # value only if we beat the range that calls
-                eq_call, _ = self.equity(state, adj, level=1, budget_frac=0.5)
+                eq_call, _ = self.equity(state, adj, level=1, budget_frac=0.5, role="caller")
                 self.last["eq_call"] = eq_call
                 if eq_call < cfg.value_vs_call + cfg.street_add[street_i] - adj.value_shift:
                     return self._passive(state)
                 if spr < cfg.shove_spr and eq >= strong_th - 0.05:
                     return self._raise_to(state, state.legal.max_raise_to)
-                if eq >= strong_th and n == 1 and self.rng.random() < 0.12:
+                if eq >= strong_th and n == 1 and self.rng.random() < max(0.12, adj.trap):
                     return self._passive(state)   # occasional slowplay heads-up
                 size = cfg.sizes[1] if eq >= strong_th or self.rng.random() < 0.35 else cfg.sizes[0]
                 return self._pot_bet(state, size)
@@ -261,7 +272,7 @@ class MainBot(Bot):
         if n > 1:
             need += 0.02 * (n - 1)
         if eq >= strong_th and self.rng.random() < 0.75 and \
-                self.equity(state, adj, level=raises + 1, budget_frac=0.5)[0] >= cfg.value_vs_call:
+                self.equity(state, adj, level=raises + 1, budget_frac=0.5, role="caller")[0] >= cfg.value_vs_call:
             if spr < cfg.shove_spr * 2 or raises >= 2:
                 return self._raise_to(state, state.legal.max_raise_to)
             return self._pot_bet(state, cfg.sizes[1])

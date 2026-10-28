@@ -1,5 +1,5 @@
 """Bot registry: make_bot('call', seed=1) -> bot instance."""
-from bots import main_bot
+from bots import main_bot, opp_model
 from bots.zoo import simple, styles
 
 REGISTRY = {
@@ -20,8 +20,9 @@ REGISTRY = {
     "mc": styles.MonteCarlo,
     "bayes": styles.Bayes,
     "main": main_bot.MainBot,
+    "model": opp_model.ModelBot,
 }
-ZOO = [k for k in REGISTRY if k != "main"]
+ZOO = [k for k in REGISTRY if k not in ("main", "model")]
 
 
 def make_bot(kind, name=None, seed=0):

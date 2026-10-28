@@ -32,3 +32,10 @@ def test_action_and_legal():
     assert str(Action("check")) == "CHECK"
     lg = Legal(can_check=True, can_raise=True, min_raise_to=100, max_raise_to=10000, raise_kind="bet")
     assert lg.actions() == ["check", "bet", "fold"]
+
+
+def test_street_contrib():
+    s = GameState(history=[HistoryEntry(1, "preflop", "post", 100), HistoryEntry(2, "preflop", RAISE, 300),
+                           HistoryEntry(1, "preflop", CALL, 200), HistoryEntry(2, "flop", "bet", 50)])
+    assert s.street_contrib(1, "preflop") == 300 and s.street_contrib(2, "preflop") == 300
+    assert s.street_contrib(2, "flop") == 50

@@ -42,6 +42,22 @@ python -m pytest -q
 - Every knob is in `Config`. The exploit hooks are `Adjust` / `MainBot.adjust(state)`.
 - Gauntlet: `python -m sim.gauntlet main --hands 8000` (7 copies of each zoo bot, 8-handed, duplicate mode, plus mixed fields).
 
+## Opponent model (`bots/opp_model.py`, registry name `model`)
+
+- Per opponent, keyed by **bot name** (when the dealer shows names) and by **seat** (fallback): VPIP, PFR, 3-bet, postflop aggression frequency, fold-to-bet by street, all-in frequency, preflop strength of shown hands, and "bluff rate" (share of postflop aggression shown down with a hand that didn't improve on the board).
+- Rates are Beta-smoothed toward population priors (`PRIORS`, 3-10 pseudo-hands). Confidence = hands / (hands + 25); every exploit is blended from neutral by confidence.
+- Archetypes: `shover` (all-in > 25%), `maniac` (PFR > 35%), `station` (VPIP > 28% with PFR < 0.3 x VPIP), `nit` (VPIP < 14%), `lag`, `tag`.
+- Exploits (each can be switched off for ablation: `ModelBot(exploits=EXPLOITS - {"steal"})`):
+  - `ranges`: preflop raise and call ranges from the opponent's PFR / VPIP.
+  - `bettor`: bluff share of a bettor's range from their measured bluff rate (maniac/shover at least 2.5x, nit at most 0.4x plus an extra call margin).
+  - `jam`: a shover's range = their all-in frequency.
+  - `bluff`: heads-up bluff frequency scales with (fold-to-bet / 0.45)^2, x1.25 in position; about 0 vs stations.
+  - `value`: thinner value vs stations (callers hold more air).
+  - `trap`: slowplay strong hands vs aggressive players.
+  - `steal`: open any hand when the players behind fold to a raise often enough (>= 62%), top 60% when >= 45%.
+  - `vs_raise`: defend / 3-bet ranges sized to the raiser's PFR.
+- Ablation: `python -m sim.ablation --hands 6000`.
+
 ## Opponent zoo (`bots/zoo/`, registry names in brackets)
 
 | Bot | Style |
