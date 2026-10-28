@@ -10,6 +10,7 @@ Exploit hooks: `self.adjust(state)` returns an Adjust with multipliers and
 shifts; the base bot returns neutral values and the opponent model (Phase 5)
 overrides it.
 """
+import time
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -24,7 +25,7 @@ from core.state import CALL, CHECK, FOLD, Action
 
 @dataclass
 class Config:
-    equity_budget: float = 0.006     # seconds of Monte Carlo per postflop decision
+    equity_budget: float = 0.006     # seconds of Monte Carlo per decision when no deadline is set
     equity_samples: int = 800        # cap on samples
     open_bb: float = 2.5             # open size, +1bb per limper
     three_bet_ip: float = 3.0        # 3-bet to x the raise in position
@@ -73,12 +74,20 @@ class MainBot(Bot):
         self.cfg = config or Config()
         self.pct = percentile_matrix()
         self.last = {}               # debug info from the last decision
+        self.deadline = None         # perf_counter() time to finish by (set by SafeBot)
 
     # ------------------------------------------------------------ hooks
     def adjust(self, state) -> Adjust:
         return Adjust()
 
     # ------------------------------------------------------------ helpers
+    def _budget(self, frac=1.0) -> float:
+        """Seconds of Monte Carlo allowed now: a share of the time left before
+        the deadline, or of cfg.equity_budget when there is no deadline."""
+        if self.deadline is None:
+            return self.cfg.equity_budget * frac
+        return max(0.0002, (self.deadline - time.perf_counter()) * frac)
+
     @staticmethod
     def _raise_to(state, amount) -> Action:
         lg = state.legal
@@ -174,9 +183,9 @@ class MainBot(Bot):
         big = 0.5 * (state.my_street_bet + state.to_call)
         n_in = max(1, sum(1 for s in state.live if s != state.my_seat and state.street_contrib(s) >= big))
         if width >= 0.99:
-            eq, _ = equity_detailed(state.hole, (), n_in, samples=300, time_budget=0.003, rng=self.rng)
+            eq, _ = equity_detailed(state.hole, (), n_in, samples=300, time_budget=self._budget(0.5), rng=self.rng)
         else:
-            eq, _ = equity_detailed(state.hole, (), n_in, samples=300, time_budget=0.003, rng=self.rng,
+            eq, _ = equity_detailed(state.hole, (), n_in, samples=300, time_budget=self._budget(0.5), rng=self.rng,
                                     opp_range=strong_range_combos(round(min(1.0, width), 3)))
         # calling also risks the rest of our stack if the raiser is not all-in: price as all-in
         risk = min(state.my_stack, state.effective_stack - state.my_street_bet)
@@ -233,7 +242,7 @@ class MainBot(Bot):
         weight = self._weight_fn(state, opps, adj, level, role)
         eq, n = equity_detailed(state.hole, state.board, max(1, len(opps)),
                                 samples=self.cfg.equity_samples,
-                                time_budget=self.cfg.equity_budget * budget_frac,
+                                time_budget=self._budget(budget_frac),
                                 rng=self.rng, opp_weight=weight)
         return eq, n
 

@@ -58,6 +58,19 @@ python -m pytest -q
   - `vs_raise`: defend / 3-bet ranges sized to the raiser's PFR.
 - Ablation: `python -m sim.ablation --hands 6000`. The last run is in `results/phase5_ablation.txt`: model 298 vs main 186 bb/100 mean over 18 fields. The biggest contributions come from `jam` (-79 when off), `value` (-27), `steal` (-14 overall, but it is the whole edge vs nit and foldbot) and `ranges` (-10). `bettor` and `vs_raise` are within noise.
 
+## Safety and timing (`core/safety.py`, registry name `safe`)
+
+`SafeBot(bot, budget=0.015, hard_timeout=True, safety=0.6, log_path=None, debug=False)`:
+
+- **Deadline:** the bot gets `bot.deadline = now + 0.6 x budget`, and every Monte Carlo call in `MainBot` sizes itself from the time left.
+- **Hard timeout:** with `hard_timeout`, the decision runs on one worker thread. If it isn't back by 95% of the budget, the fallback is sent. While an overrunning decision is still running, later decisions return the fallback at once rather than stacking work.
+- **Errors:** an exception becomes the safest legal action (check, else fold) and is logged with its traceback.
+- **Validation:** `validate(action, legal)` maps every outgoing action onto the legal set. A call amount is forced to the exact amount, a raise is clamped to [min, max] with the BET/RAISE kind fixed, an illegal check becomes a fold, and a fold when checking is free becomes a check.
+- **GC:** garbage collection is paused during a decision and generation 0 is collected between hands.
+- **Hand log:** `log_path` writes one line per hand: id, position, hole cards, board, each decision with eq / pot odds / ms, net, and showdown hands.
+- **Debug:** `debug=True` prints one line per decision to **stderr** (equity, equity vs callers, pot odds, SPR, rough EV of fold / call / min-raise). It is off by default; stdout is reserved for the protocol.
+- **Measured:** single process, model behind the wrapper, 8-handed: p50 0.7 ms, p99 9.6 ms, p99.9 12.6 ms. About 1 decision in 3,000 spikes to 30-40 ms from OS / GIL scheduling. Run the bot as the only busy process on event day.
+
 ## Opponent zoo (`bots/zoo/`, registry names in brackets)
 
 | Bot | Style |

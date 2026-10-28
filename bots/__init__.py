@@ -1,5 +1,6 @@
 """Bot registry: make_bot('call', seed=1) -> bot instance."""
 from bots import main_bot, opp_model
+from core.safety import SafeBot
 from bots.zoo import simple, styles
 
 REGISTRY = {
@@ -21,8 +22,10 @@ REGISTRY = {
     "bayes": styles.Bayes,
     "main": main_bot.MainBot,
     "model": opp_model.ModelBot,
+    # the event-day configuration: model bot behind the safety wrapper
+    "safe": lambda name=None, seed=0: SafeBot(opp_model.ModelBot(name or "safe", seed)),
 }
-ZOO = [k for k in REGISTRY if k not in ("main", "model")]
+ZOO = [k for k in REGISTRY if k not in ("main", "model", "safe")]
 
 
 def make_bot(kind, name=None, seed=0):
