@@ -56,7 +56,7 @@ python -m pytest -q
   - `trap`: slowplay strong hands vs aggressive players.
   - `steal`: open any hand when the players behind fold to a raise often enough (>= 62%), top 60% when >= 45%.
   - `vs_raise`: defend / 3-bet ranges sized to the raiser's PFR.
-- Ablation: `python -m sim.ablation --hands 6000`.
+- Ablation: `python -m sim.ablation --hands 6000`. The last run is in `results/phase5_ablation.txt`: model 298 vs main 186 bb/100 mean over 18 fields. The biggest contributions come from `jam` (-79 when off), `value` (-27), `steal` (-14 overall, but it is the whole edge vs nit and foldbot) and `ranges` (-10). `bettor` and `vs_raise` are within noise.
 
 ## Opponent zoo (`bots/zoo/`, registry names in brackets)
 
