@@ -21,7 +21,7 @@ python -m pytest -q
 | `sim/engine.py` | 2-8 seat NLHE engine: blinds, min-raise and reopen rules, side and split pots, stack persistence with auto-rebuy, error/illegal counting |
 | `sim/run.py` | Match runner: bb/100 with 95% CI, duplicate mode, think-time stats |
 | `bots/__init__.py` | Bot registry (`make_bot`) |
-| `bots/zoo/` | Reference opponents |
+| `bots/zoo/` | Reference opponents (see below) |
 | `core/data/preflop_equity.json` | Precomputed table. Rebuild: `python -m core.preflop --samples 20000` (~1 min on 4 cores) |
 
 ## Defaults and conventions (chosen, not confirmed)
@@ -32,6 +32,29 @@ python -m pytest -q
 - Opening sizes per position live in `OPEN_PCT`, `THREEBET_PCT`, `CALL_PCT`, `FOURBET_PCT`, `CALL3_PCT` in `core/preflop.py`. Hands within `MIX_BAND` of a cutoff are mixed.
 - Push/fold below `PUSHFOLD_BB = 15` effective big blinds.
 - Equity speed: ~7 µs/sample heads-up, ~12 µs with 7 opponents (eval7), so ~2,000-3,000 samples fit in 15 ms.
+
+## Opponent zoo (`bots/zoo/`, registry names in brackets)
+
+| Bot | Style |
+|---|---|
+| `fold` | check/fold only |
+| `call` | always call/check (calling station) |
+| `raise` | always min-raise preflop, pot-bet postflop |
+| `allin` | shove every hand |
+| `random` | uniform fold / call / random-size raise |
+| `nit` | top 10% only, folds to aggression without a strong hand |
+| `lp` | loose-passive: limps/calls ~55%, rarely bets |
+| `tag` | tight-aggressive, ~20% VPIP |
+| `lag` | loose-aggressive, ~38% VPIP, bluffs a lot |
+| `foldbot` | FOLDBOT: plays ~2.5% of hands |
+| `riverrat` | RIVERRAT: loose preflop, never folds postflop |
+| `tilt` | TILT: LAG that widens and bluffs more as it loses (full tilt at -100bb over 30 hands) |
+| `gtolite` | GTO-lite TAG: chart preflop, bluff ratio from bet size, MDF defence |
+| `potodds` | basic equity bot: calls when equity beats pot odds |
+| `mc` | Monte Carlo equity (200 samples) + EV of fold / call / two raise sizes |
+| `bayes` | adaptive: Beta-smoothed per-opponent aggression and fold-to-bet |
+
+Most style bots share one `Parametric` class (`bots/zoo/styles.py`), so a new archetype is a few numbers.
 
 ## Simulator
 

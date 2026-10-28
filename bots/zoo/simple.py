@@ -1,22 +1,10 @@
 """Degenerate reference bots: what a weak field looks like."""
-import numpy as np
-
-from core.bot import Bot, call_or_check, check_or_fold
 from core.state import FOLD, Action
 
-
-class _Seeded(Bot):
-    def __init__(self, name=None, seed=0):
-        self.name = name or self.name
-        self.rng = np.random.default_rng(seed)
+from .common import Seeded as _Seeded, call_or_check, check_or_fold, raise_to as _raise_to
 
 
-def _raise_to(state, amount):
-    lg = state.legal
-    return Action(lg.raise_kind, int(max(lg.min_raise_to, min(lg.max_raise_to, amount))))
-
-
-class FoldBot(_Seeded):
+class CheckFold(_Seeded):
     """Checks when free, folds otherwise."""
     name = "fold"
 
