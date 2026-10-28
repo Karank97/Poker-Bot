@@ -71,6 +71,16 @@ python -m pytest -q
 - **Debug:** `debug=True` prints one line per decision to **stderr** (equity, equity vs callers, pot odds, SPR, rough EV of fold / call / min-raise). It is off by default; stdout is reserved for the protocol.
 - **Measured:** single process, model behind the wrapper, 8-handed: p50 0.7 ms, p99 9.6 ms, p99.9 12.6 ms. About 1 decision in 3,000 spikes to 30-40 ms from OS / GIL scheduling. Run the bot as the only busy process on event day.
 
+## Adapter and event-day kit
+
+- `adapter/template.py` is the only file to rewrite on the day. It has a `Config` block, a `Tracker` (dealer events → `GameState` / `HandResult`), an `ACT?` parser, `serialize()` (replies only ever use a verb listed on the `ACT?` line), and transports for stdin/stdout, TCP lines and TCP JSON-lines. Every `ACT?` gets a reply even if parsing or the bot fails (`emergency_reply`).
+  - **Observed messages** it handles: `DEAL`, `FLOP` / `TURN` / `RIVER`, `ACT? <legal>`.
+  - **Assumed messages** (rename to the real ones): `PLAYERS`, `SEAT`, `BUTTON`, `BLINDS`, `STACK(S)`, `POT`, `ACTION <who> <KIND> [amt]`, `SHOWDOWN`, `END [net]`.
+  - **When information is missing:** blind posts are inferred from the price, a bet we never saw is recorded as an unknown aggressor, our position is inferred (BB / SB from the price), and the number of postflop opponents is assumed (`ASSUMED_POSTFLOP_OPPONENTS`).
+- `adapter/fake_dealer.py`: runs the engine and talks the text protocol to a bot subprocess. `--minimal` sends only the observed messages.
+- `make bot`: bundles `dist/bot` (core, main bot, opponent model, adapter, `main.py`, vendored treys) and smoke-tests it through the fake dealer. `make test`, `make sim`, `make gauntlet`, `make ablation` and `make tables` are also available.
+- `EVENT_DAY.md`: the 60-minute plan and the first-5-minutes checklist.
+
 ## Opponent zoo (`bots/zoo/`, registry names in brackets)
 
 | Bot | Style |

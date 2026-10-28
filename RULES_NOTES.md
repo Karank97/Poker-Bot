@@ -22,6 +22,14 @@ network settings, or open the page yourself and update this file.
 | Helper code / AI assistance | Allowed | - |
 | Opponent identity | May persist across games; track by seat and by name | opponent model (Phase 5) |
 
+## Protocol details still unknown (all are config flags or TODO(day) in adapter/template.py)
+
+- Whether opponent actions, pot, stacks, button / seat, names and showdown cards are broadcast, and in what format.
+- "Raise to" vs "raise by", for our replies and for the numbers on `ACT?` lines.
+- Whether `CALL` must carry the amount (observed: `CALL 50`), and whether ALL-IN is a separate verb.
+- Handshake / authentication on connect.
+- Whether the process persists between games (opponent model memory).
+
 ## Contradictions found
 
 None checked yet (page unreachable).
